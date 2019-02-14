@@ -174,16 +174,16 @@ namespace {
     std::cout << p_parton.size() << " " << p_higgs.size() << "\nreal: "
       << mom_map_size(p_parton) << " " << mom_map_size(p_higgs) << std::endl;
     std::vector<t_result> results;
-    for(const auto & ax: p_higgs){
-      for(const auto & bx: p_parton){
+    for(const auto & ax: p_higgs)
+      for(const auto & bx: p_parton)
         for(const auto & cx: p_parton){
           // TODO make this calls nicer
           double const tx = -(ax.first+bx.first+cx.first);
           auto const & dx = p_parton.find(tx);
           if(dx == p_parton.end())
             continue;
-          for(const auto & ay: ax.second){
-            for(const auto & by: bx.second){
+          for(const auto & ay: ax.second)
+            for(const auto & by: bx.second)
               for(const auto & cy: cx.second){
                 double const ty = -(ay.first+by.first+cy.first);
                 auto const & dy = dx->second.find(ty);
@@ -210,11 +210,7 @@ namespace {
                         }
                       }
               }
-            }
-          }
         }
-      }
-    }
     return std::move(results);
   }
 }
