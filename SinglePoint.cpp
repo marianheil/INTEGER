@@ -174,16 +174,16 @@ namespace {
     std::cout << p_parton.size() << " " << p_higgs.size() << "\nreal: "
       << mom_map_size(p_parton) << " " << mom_map_size(p_higgs) << std::endl;
     std::vector<t_result> results;
-    for(const auto & ax: p_higgs){
-      for(const auto & bx: p_parton){
+    for(const auto & ax: p_higgs)
+      for(const auto & bx: p_parton)
         for(const auto & cx: p_parton){
           // TODO make this calls nicer
           double const tx = -(ax.first+bx.first+cx.first);
           auto const & dx = p_parton.find(tx);
           if(dx == p_parton.end())
             continue;
-          for(const auto & ay: ax.second){
-            for(const auto & by: bx.second){
+          for(const auto & ay: ax.second)
+            for(const auto & by: bx.second)
               for(const auto & cy: cx.second){
                 double const ty = -(ay.first+by.first+cy.first);
                 auto const & dy = dx->second.find(ty);
@@ -196,7 +196,7 @@ namespace {
                         t_result particles;
                         particles.emplace_back(vec4{ax.first,  ay.first,  azE[0], azE[1]});
                         particles.emplace_back(vec4{bx.first,  by.first,  bzE[0], bzE[1]});
-                        particles.emplace_back(vec4{bx.first,  cy.first,  czE[0], czE[1]});
+                        particles.emplace_back(vec4{cx.first,  cy.first,  czE[0], czE[1]});
                         particles.emplace_back(vec4{dx->first, dy->first, dzE[0], dzE[1]});
                         auto const incoming(construct_incoming(particles));
                         if(!check_in || is_int(incoming)){
@@ -210,11 +210,7 @@ namespace {
                         }
                       }
               }
-            }
-          }
         }
-      }
-    }
     return std::move(results);
   }
 }
@@ -228,7 +224,7 @@ namespace {
  */
 
 int main(){
-  std::vector<t_result> results{find_possible_map(1000, true)};
+  std::vector<t_result> results{find_possible_map(10000, true)};
   std::cout << "Map Found " << results.size() << " possible momenta" << std::endl;
   // std::vector<t_result> results_normal{find_possible(200, false)};
   // std::cout << "Found " << results_normal.size() << " possible momenta" << std::endl;
