@@ -26,18 +26,6 @@ namespace {
     return true;
   }
 
-  // bool is_int(vec4 const & d){
-  //   for(auto p: d)
-  //     if(!is_int(p)) return false;
-  //   return true;
-  // }
-
-  // bool is_int(t_result const & d){
-  //   for(auto p: d)
-  //     if(!is_int(p)) return false;
-  //   return true;
-  // }
-
   double m2(vec4 const & p){
     return -p[0]*p[0]-p[1]*p[1]-p[2]*p[2]+p[3]*p[3];
   }
@@ -158,29 +146,6 @@ namespace {
     }
     return std::move(results);
   }
-
-  // template<class T>
-  // std::vector<T> possible_xy(
-  //     std::vector<T> const & outs,
-  //     double const val /*momentum previous particle*/,
-  //     size_t const pos /*current position*/
-  // ){
-  //   if(outs.size()==pos+1){ // if last particle
-  //     auto const & res = outs[pos].first.find(val);
-  //     // check if value exists
-  //     if(res == outs[pos].first.end()) return {};
-  //     // and return it
-  //     return {res};
-  //   }
-  //   std::vector<T> returns;
-  //   // else find all possible results of one stage up
-  //   for(auto const & it: outs[pos]){
-  //     auto const pref = possible_xy(outs, val+it.first, pos+1);
-  //     if(pref.size()!=0)
-  //       returns.emplace_back({it, pref});
-  //   }
-  //   return std::move(returns);
-  // }
 
   size_t mom_map_size(mom_map const & map){
     size_t ret=0;
