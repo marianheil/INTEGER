@@ -46,6 +46,10 @@ namespace {
     return sqrt(m2(p));
   }
 
+  double rap(vec4 const & p) {
+    return 1./2.*log(1.*(p[3]+p[2])/(p[3]-p[2]));
+  }
+
   double get_E(double const p0, double const p1, double const p2, double const m = 0.){
     return sqrt(+p0*p0+p1*p1+p2*p2+m*m);
   }
@@ -170,12 +174,13 @@ namespace {
 
   std::vector<t_result> find_possible_map(double const maxp, bool const check_in){
     const auto p_parton{possible_mom_map(0,maxp,30)};
-    const auto p_higgs{possible_mom_map(125,maxp,0)};
+    const auto p_higgs{possible_mom_map(126,maxp,0)};
     std::cout << p_parton.size() << " " << p_higgs.size() << "\nreal: "
       << mom_map_size(p_parton) << " " << mom_map_size(p_higgs) << std::endl;
     std::vector<t_result> results;
     for(const auto & ax: p_higgs)
-      for(const auto & bx: p_parton)
+      for(const auto & bx: p_parton){
+        if(bx.first == ax.first) continue;
         for(const auto & cx: p_parton){
           // TODO make this calls nicer
           double const tx = -(ax.first+bx.first+cx.first);
@@ -189,17 +194,25 @@ namespace {
                 auto const & dy = dx->second.find(ty);
                 if(dy == dx->second.end())
                   continue;
-                for(const auto & azE: ay.second)
-                  for(const auto & bzE: by.second)
-                    for(const auto & czE: cy.second)
+
+                for(const auto & azE: ay.second){
+                  for(const auto & bzE: by.second){
+                    for(const auto & czE: cy.second){
                       for(const auto & dzE: dy->second){
                         t_result particles;
                         particles.emplace_back(vec4{ax.first,  ay.first,  azE[0], azE[1]});
+                        if(rap(particles.back()) > 5.) continue;
                         particles.emplace_back(vec4{bx.first,  by.first,  bzE[0], bzE[1]});
+                        if(rap(particles.back()) > 5.) continue;
                         particles.emplace_back(vec4{cx.first,  cy.first,  czE[0], czE[1]});
+                        if(rap(particles.back()) > 5.) continue;
                         particles.emplace_back(vec4{dx->first, dy->first, dzE[0], dzE[1]});
+                        if(rap(particles.back()) > 5.) continue;
                         auto const incoming(construct_incoming(particles));
-                        if(!check_in || is_int(incoming)){
+                        if(!check_in ||
+                            ( is_int(incoming)
+                              && (2*(incoming[0][3]*incoming[0][3]+incoming[1][3]*incoming[1][3])<10000*10000) )
+                        ){
                           particles.insert( particles.end(), incoming.begin(), incoming.end() );
                           std::cout << "POSSIBLE FOUND" << std::endl;
                           for(auto const & p: particles){
@@ -209,8 +222,12 @@ namespace {
                           results.emplace_back(std::move(particles));
                         }
                       }
+                    }
+                  }
+                }
               }
         }
+      }
     return std::move(results);
   }
 }
@@ -224,7 +241,7 @@ namespace {
  */
 
 int main(){
-  std::vector<t_result> results{find_possible_map(10000, true)};
+  std::vector<t_result> results{find_possible_map(100, true)};
   std::cout << "Map Found " << results.size() << " possible momenta" << std::endl;
   // std::vector<t_result> results_normal{find_possible(200, false)};
   // std::cout << "Found " << results_normal.size() << " possible momenta" << std::endl;
