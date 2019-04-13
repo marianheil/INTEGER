@@ -170,7 +170,7 @@ namespace {
 
   std::vector<t_result> find_possible_map(double const maxp, bool const check_in){
     const auto p_parton{possible_mom_map(0,maxp,30)};
-    const auto p_higgs{possible_mom_map(125,maxp,0)};
+    const auto p_higgs{possible_mom_map(88.*sqrt(2.),maxp,0)};
     std::cout << p_parton.size() << " " << p_higgs.size() << "\nreal: "
       << mom_map_size(p_parton) << " " << mom_map_size(p_higgs) << std::endl;
     std::vector<t_result> results;
