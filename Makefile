@@ -1,14 +1,16 @@
 ## Makefile for SinglePoint
 
-CXX := g++
-CXXFLAGS += -Wall -O3 -std=c++14
-# LDFLAGS  += $(HEJ_LIBS) $(FASTJET_LIBS)
+ifndef CXX
+	CXX := g++
+endif
+CXXFLAGS += -Wall -O2 -std=c++14
+# LDFLAGS += ""
 
 SinglePoint: SinglePoint.cpp
-	g++ SinglePoint.cpp $(CXXFLAGS) $(CPPFLAGS) -I. $(LDFLAGS) -o SinglePoint
+	$(CXX) $< -o $@ $(CXXFLAGS) -I.  $(LDFLAGS)
 
 test: SinglePoint
-	./SinglePoint
+	./$<
 
 clean:
 	@rm -f SinglePoint
