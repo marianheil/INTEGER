@@ -6,21 +6,19 @@ endif
 CXXFLAGS += -Wall -O2 -std=c++14
 # LDFLAGS += ""
 
-.PHONY: main clean
+PROGRAMS = INTEGER INTEGER_naive INTEGER_map
+
+.PHONY: main clean all
 
 main: INTEGER
 
-INTEGER: INTEGER.cpp
-	$(CXX) $< -o $@ $(CXXFLAGS) $(LDFLAGS)
+all: $(PROGRAMS)
 
-INTEGER_naive: INTEGER_naive.cpp
-	$(CXX) $< -o $@ $(CXXFLAGS) $(LDFLAGS)
-
-INTEGER_map: INTEGER_map.cpp
+$(PROGRAMS): %: %.cpp
 	$(CXX) $< -o $@ $(CXXFLAGS) $(LDFLAGS)
 
 test: INTEGER
 	./$<
 
 clean:
-	@rm -f INTEGER INTEGER_naive INTEGER_map
+	@rm -f $(PROGRAMS)
