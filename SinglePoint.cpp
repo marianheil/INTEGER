@@ -197,7 +197,7 @@ namespace {
       // stop iteration over y and iterate over z & E
       double ty = 0.;
       for( auto const & y: prev_y)
-        ty+=y;
+        ty-=y;
       auto const & ay = all_yzE[index]->find(ty);
       if(ay == all_yzE[index]->end())
         return std::vector<t_result>();
@@ -258,6 +258,21 @@ namespace {
     return results;
   }
 
+  std::vector<t_result> find_possible_recusive(double const maxp, size_t const njets){
+    const auto p_parton{possible_mom_map(0,maxp,30)};
+    const auto p_higgs{possible_mom_map(88.*sqrt(2.),maxp,0)};
+    std::cout << p_parton.size() << " " << p_higgs.size() << "\nreal: "
+      << mom_map_size(p_parton) << " " << mom_map_size(p_higgs) << std::endl;
+    std::vector<mom_map const *> all_maps;
+    all_maps.push_back(&p_higgs);
+    for(size_t i=0; i<njets; ++i){
+      all_maps.push_back(&p_parton);
+    }
+    std::vector<double> new_x;
+    std::vector<mom_yzE const * > new_y;
+    return iterate_x(all_maps, 0, new_x, new_y);
+  }
+
   std::vector<t_result> find_possible_map(double const maxp, bool const check_in){
     const auto p_parton{possible_mom_map(0,maxp,30)};
     const auto p_higgs{possible_mom_map(88.*sqrt(2.),maxp,0)};
@@ -314,7 +329,9 @@ namespace {
  */
 
 int main(){
-  std::vector<t_result> results{find_possible_map(100, true)};
+  // std::vector<t_result> results{find_possible_map(100, true)};
+  // std::cout << "Map Found " << results.size() << " possible momenta" << std::endl;
+  std::vector<t_result> results{find_possible_recusive(200, 10)};
   std::cout << "Map Found " << results.size() << " possible momenta" << std::endl;
   // std::vector<t_result> results_normal{find_possible(200, false)};
   // std::cout << "Found " << results_normal.size() << " possible momenta" << std::endl;
