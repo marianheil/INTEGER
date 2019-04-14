@@ -24,28 +24,12 @@ namespace {
     return true;
   }
 
-  // bool is_int(vec4 const & d){
-  //   for(auto p: d)
-  //     if(!is_int(p)) return false;
-  //   return true;
-  // }
-
-  // bool is_int(t_result const & d){
-  //   for(auto p: d)
-  //     if(!is_int(p)) return false;
-  //   return true;
-  // }
-
-  double m2(vec4 const & p){
-    return -p[0]*p[0]-p[1]*p[1]-p[2]*p[2]+p[3]*p[3];
-  }
-
-  double m(vec4 const & p) {
-    return sqrt(m2(p));
+  double rap(double const pz, double const E){
+    return 1./2.*log(1.*(E+pz)/(E-pz));
   }
 
   double rap(vec4 const & p) {
-    return 1./2.*log(1.*(p[3]+p[2])/(p[3]-p[2]));
+    return rap(p[2], p[3]);
   }
 
   double phi(vec4 const & p) {
@@ -68,13 +52,13 @@ namespace {
   }
 
   std::vector<vec4> possible_mom(
-      double const mass,double const maxp,double const minpt){
+      double const mass2, double const maxp,double const minpt){
     std::vector<vec4> results;
     for(double i0=-maxp; i0<maxp;++i0){
       for(double i1=-maxp; i1<maxp;++i1){
         if(i0*i0+i1*i1>minpt*minpt){
           for(double i2=-maxp; i2<maxp;++i2){
-            const double E(get_E(i0, i1, i2, mass));
+            const double E(get_E2(i0, i1, i2, mass2));
             if(is_int(E))
               results.emplace_back(vec4{i0,i1,i2,E});
           }
@@ -85,14 +69,14 @@ namespace {
   }
 
   mom_map possible_mom_map(
-      double const mass2,double const maxp,double const minpt){
+      double const mass2,double const maxp, double const max_rap, double const minpt){
     mom_map results;
     for(double i0=-maxp; i0<maxp;++i0){
       for(double i1=-maxp; i1<maxp;++i1){
         if(i0*i0+i1*i1>minpt*minpt){
           for(double i2=-maxp; i2<maxp;++i2){
             const double E(get_E2(i0, i1, i2, mass2));
-            if(is_int(E))
+            if(is_int(E) && rap(i2, E) < max_rap)
               results[i0][i1].emplace_back(std::array<double,2>{i2,E});
           }
         }
@@ -125,7 +109,7 @@ namespace {
 
   std::vector<t_result> find_possible(double const maxp, bool const check_in){
     const auto p_parton{possible_mom(0,maxp,30)};
-    const auto p_higgs{possible_mom(125,maxp,0)};
+    const auto p_higgs{possible_mom(126*126,maxp,0)};
     std::cout << p_parton.size() << " " << p_higgs.size() << std::endl;
     std::vector<t_result> results;
     for(const auto & a: p_higgs){
@@ -155,29 +139,6 @@ namespace {
     }
     return std::move(results);
   }
-
-  // template<class T>
-  // std::vector<T> possible_xy(
-  //     std::vector<T> const & outs,
-  //     double const val /*momentum previous particle*/,
-  //     size_t const pos /*current position*/
-  // ){
-  //   if(outs.size()==pos+1){ // if last particle
-  //     auto const & res = outs[pos].first.find(val);
-  //     // check if value exists
-  //     if(res == outs[pos].first.end()) return {};
-  //     // and return it
-  //     return {res};
-  //   }
-  //   std::vector<T> returns;
-  //   // else find all possible results of one stage up
-  //   for(auto const & it: outs[pos]){
-  //     auto const pref = possible_xy(outs, val+it.first, pos+1);
-  //     if(pref.size()!=0)
-  //       returns.emplace_back({it, pref});
-  //   }
-  //   return std::move(returns);
-  // }
 
   size_t mom_map_size(mom_map const & map){
     size_t ret=0;
@@ -305,8 +266,10 @@ namespace {
   }
 
   std::vector<t_result> find_possible_recusive(double const maxp, size_t const njets){
-    const auto p_parton{possible_mom_map(0,maxp,30)};
-    const auto p_higgs{possible_mom_map(88.*sqrt(2.),maxp,0)};
+    constexpr double max_rap = 5.; // maximal rapidity
+    constexpr double higgs_m2 = 88.*88.*2.; // mass square of the Higgs boson
+    const auto p_parton{possible_mom_map(0, maxp, max_rap, 30)};
+    const auto p_higgs{possible_mom_map(higgs_m2, maxp, max_rap, 0)};
     std::cout << p_parton.size() << " " << p_higgs.size() << "\nreal: "
       << mom_map_size(p_parton) << " " << mom_map_size(p_higgs) << std::endl;
     std::vector<mom_map const *> all_maps;
@@ -320,8 +283,12 @@ namespace {
   }
 
   std::vector<t_result> find_possible_map(double const maxp, bool const check_in){
-    const auto p_parton{possible_mom_map(0,maxp,30)};
-    const auto p_higgs{possible_mom_map(125,maxp,0)};
+    constexpr double max_rap = 5.; // maximal rapidity
+    constexpr double min_Rjj = 0.4; // minimal R distance between 2 jets
+    constexpr double max_Ecm = 10000.; // maximal center of mass Energy
+    constexpr double higgs_m2 = 88.*88.*2.; // mass square of the Higgs boson
+    const auto p_parton{possible_mom_map(0, maxp, max_rap, 30)};
+    const auto p_higgs{possible_mom_map(higgs_m2, maxp, max_rap, 0)};
     std::cout << p_parton.size() << " " << p_higgs.size() << "\nreal: "
       << mom_map_size(p_parton) << " " << mom_map_size(p_higgs) << std::endl;
     std::vector<t_result> results;
@@ -330,7 +297,6 @@ namespace {
         // enforce different px for higgs and the first jet (make it look more random)
         if(bx.first == ax.first) continue;
         for(const auto & cx: p_parton){
-          // TODO make this calls nicer
           double const tx = -(ax.first+bx.first+cx.first);
           auto const & dx = p_parton.find(tx);
           if(dx == p_parton.end())
@@ -347,17 +313,13 @@ namespace {
                 particles.resize(6);
                 for(const auto & azE: ay.second){
                   particles[0]=vec4{ax.first,  ay.first,  azE[0], azE[1]};
-                  if(rap(particles[0]) > max_rap) continue;
                   for(const auto & bzE: by.second){
                     particles[1]=vec4{bx.first,  by.first,  bzE[0], bzE[1]};
-                    if(rap(particles[1]) > max_rap) continue;
                     for(const auto & czE: cy.second){
                       particles[2]=vec4{cx.first,  cy.first,  czE[0], czE[1]};
                       if( dR( particles[2], particles[1] ) < min_Rjj) continue;
-                      if(rap(particles[2]) > max_rap) continue;
                       for(const auto & dzE: dy->second){
                         particles[3]=vec4{dx->first, dy->first, dzE[0], dzE[1]};
-                        if(rap(particles[3]) > max_rap) continue;
                         if(( dR(particles[3], particles[2]) < min_Rjj) || ( dR(particles[3], particles[1]) < min_Rjj)) continue;
                         auto const incoming(construct_incoming(particles.begin(), particles.end()-2));
                         if(!check_in ||
