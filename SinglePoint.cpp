@@ -6,13 +6,11 @@
 #include <typeinfo>
 
 namespace {
-  using vec4 = std::array<double,4> ;
-  using t_result = std::vector<vec4> ;
-  using mom_map = std::unordered_map<double, // x
-      std::unordered_map<double,  // (multiple) y
-        std::vector<std::array<double,2>> // (multiple) (z, E)
-      >
-    >;
+  using vec4 = std::array<double,4>;
+  using t_result = std::vector<vec4>;
+  using mom_zE = std::vector<std::array<double,2>>; // (multiple) z & E
+  using mom_yzE = std::unordered_map<double, mom_zE>; // (multiple) y
+  using mom_map = std::unordered_map<double, mom_yzE>; // (multiple) x
 
   bool is_int(double d){
     double intpart;
@@ -135,29 +133,6 @@ namespace {
     return std::move(results);
   }
 
-  // template<class T>
-  // std::vector<T> possible_xy(
-  //     std::vector<T> const & outs,
-  //     double const val /*momentum previous particle*/,
-  //     size_t const pos /*current position*/
-  // ){
-  //   if(outs.size()==pos+1){ // if last particle
-  //     auto const & res = outs[pos].first.find(val);
-  //     // check if value exists
-  //     if(res == outs[pos].first.end()) return {};
-  //     // and return it
-  //     return {res};
-  //   }
-  //   std::vector<T> returns;
-  //   // else find all possible results of one stage up
-  //   for(auto const & it: outs[pos]){
-  //     auto const pref = possible_xy(outs, val+it.first, pos+1);
-  //     if(pref.size()!=0)
-  //       returns.emplace_back({it, pref});
-  //   }
-  //   return std::move(returns);
-  // }
-
   size_t mom_map_size(mom_map const & map){
     size_t ret=0;
     for(const auto & x: map){
@@ -168,6 +143,121 @@ namespace {
     return ret;
   }
 
+  std::vector<t_result> construct_incoming(
+    std::vector<double> const & vec_x, std::vector<double> const & vec_y,
+    std::vector<double> const & vec_z, std::vector<double> const & vec_E
+  ){
+    t_result particles(vec_x.size());
+    for(size_t i=0; i<vec_x.size(); ++i){
+      particles[i] = {vec_x[i], vec_y[i], vec_z[i], vec_E[i]};
+    }
+    auto const incoming(construct_incoming(particles));
+    if(is_int(incoming)){
+      particles.insert( particles.end(), incoming.begin(), incoming.end() );
+      std::cout << "POSSIBLE FOUND" << std::endl;
+      for(auto const & p: particles){
+        print_array(p);
+        std::cout << std::endl;
+      }
+      return {std::move(particles)};
+    }
+    return std::vector<t_result>();
+  }
+
+  std::vector<t_result> iterate_zE(
+    std::vector<mom_zE const *> const & all_zE, size_t const index,
+    std::vector<double> const & prev_x, std::vector<double> const & prev_y,
+    std::vector<double> & prev_z, std::vector<double> & prev_E
+  ){
+    std::vector<t_result> results;
+    for(const auto & azE: *(all_zE[index])){
+      prev_z.push_back(azE[0]);
+      prev_E.push_back(azE[1]);
+      std::vector<t_result> new_result;
+      if(index >= all_zE.size()-1){
+        // stop iteration over z & E and calculate incoming
+        new_result = construct_incoming(prev_x, prev_y, prev_z, prev_E);
+      } else{
+        new_result = iterate_zE(all_zE, index+1, prev_x, prev_y, prev_z, prev_E);
+      }
+      if(new_result.size() > 0)
+        results.insert(results.end(), new_result.begin(), new_result.end());
+      prev_z.pop_back();
+      prev_E.pop_back();
+    }
+    return results;
+  }
+
+  std::vector<t_result> iterate_y(
+    std::vector<mom_yzE const *> const & all_yzE, size_t const index,
+    std::vector<double> const & prev_x, std::vector<double> & prev_y,
+    std::vector<mom_zE const *> & prev_zE
+  ){
+    if(index >= all_yzE.size()-1){
+      // stop iteration over y and iterate over z & E
+      double ty = 0.;
+      for( auto const & y: prev_y)
+        ty+=y;
+      auto const & ay = all_yzE[index]->find(ty);
+      if(ay == all_yzE[index]->end())
+        return std::vector<t_result>();
+      prev_y.push_back(ay->first);
+      prev_zE.push_back(&(ay->second));
+      std::vector<double> new_z, new_E;
+      auto const & results = iterate_zE(prev_zE, 0, prev_x, prev_y, new_z, new_E);
+      prev_zE.pop_back();
+      prev_y.pop_back();
+      return results;
+    }
+    std::vector<t_result> results;
+    for(const auto & ay: *(all_yzE[index])){
+      prev_y.push_back(ay.first);
+      prev_zE.push_back(&(ay.second));
+      auto const & new_result = iterate_y(all_yzE, index+1, prev_x, prev_y, prev_zE);
+      if(new_result.size() > 0)
+        results.insert(results.end(), new_result.begin(), new_result.end());
+      prev_zE.pop_back();
+      prev_y.pop_back();
+    }
+    return results;
+
+  }
+
+  std::vector<t_result> iterate_x(
+    std::vector<mom_map const *> const & all_mom, size_t const index,
+    std::vector<double> & prev_x,
+    std::vector<mom_yzE const *> & prev_y
+  ){
+    if(index >= all_mom.size()-1){
+      // stop iteration of x and begin iteration on y
+      double tx = 0.;
+      for( auto const & x: prev_x)
+        tx-=x;
+      auto const & ax = all_mom[index]->find(tx);
+      if(ax == all_mom[index]->end())
+        return std::vector<t_result>();
+      prev_x.push_back(ax->first);
+      prev_y.push_back(&(ax->second));
+      std::vector<double> new_y;
+      std::vector<mom_zE const * > new_zE;
+      auto const & new_result = iterate_y(prev_y, 0, prev_x, new_y, new_zE);
+      prev_y.pop_back();
+      prev_x.pop_back();
+      return new_result;
+    }
+    // call recusively
+    std::vector<t_result> results;
+    for(const auto & ax: *(all_mom[index])){
+      prev_x.push_back(ax.first);
+      prev_y.push_back(&(ax.second));
+      auto const & new_result = iterate_x(all_mom, index+1, prev_x, prev_y);
+      results.insert(results.end(), new_result.begin(), new_result.end());
+      prev_y.pop_back();
+      prev_x.pop_back();
+    }
+    return results;
+  }
+
   std::vector<t_result> find_possible_map(double const maxp, bool const check_in){
     const auto p_parton{possible_mom_map(0,maxp,30)};
     const auto p_higgs{possible_mom_map(88.*sqrt(2.),maxp,0)};
@@ -175,24 +265,28 @@ namespace {
       << mom_map_size(p_parton) << " " << mom_map_size(p_higgs) << std::endl;
     std::vector<t_result> results;
     for(const auto & ax: p_higgs)
-      for(const auto & bx: p_parton){
+      for(const auto & bx: p_parton)
+      for(const auto & cx: p_parton){
         // TODO make this calls nicer
-        double const tx = -(ax.first+bx.first/*+cx.first*/);
+        double const tx = -(ax.first+bx.first+cx.first);
         auto const & dx = p_parton.find(tx);
         if(dx == p_parton.end())
           continue;
         for(const auto & ay: ax.second)
-          for(const auto & by: bx.second){
-            double const ty = -(ay.first+by.first/*+cy.first*/);
+          for(const auto & by: bx.second)
+          for(const auto & cy: cx.second){
+            double const ty = -(ay.first+by.first+cy.first);
             auto const & dy = dx->second.find(ty);
             if(dy == dx->second.end())
               continue;
             for(const auto & azE: ay.second)
               for(const auto & bzE: by.second)
+              for(const auto & czE: cy.second)
                 for(const auto & dzE: dy->second){
                   t_result particles;
                   particles.emplace_back(vec4{ax.first,  ay.first,  azE[0], azE[1]});
                   particles.emplace_back(vec4{bx.first,  by.first,  bzE[0], bzE[1]});
+                  particles.emplace_back(vec4{cx.first,  cy.first,  czE[0], czE[1]});
                   particles.emplace_back(vec4{dx->first, dy->first, dzE[0], dzE[1]});
                   auto const incoming(construct_incoming(particles));
                   if(!check_in || is_int(incoming)){
