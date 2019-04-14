@@ -1,4 +1,4 @@
-## Makefile for SinglePoint
+## Makefile for INTEGER
 
 ifndef CXX
 	CXX := g++
@@ -6,11 +6,21 @@ endif
 CXXFLAGS += -Wall -O2 -std=c++14
 # LDFLAGS += ""
 
-SinglePoint: SinglePoint.cpp
-	$(CXX) $< -o $@ $(CXXFLAGS) -I.  $(LDFLAGS)
+.PHONY: main clean
 
-test: SinglePoint
+main: INTEGER
+
+INTEGER: INTEGER.cpp
+	$(CXX) $< -o $@ $(CXXFLAGS) $(LDFLAGS)
+
+INTEGER_naive: INTEGER_naive.cpp
+	$(CXX) $< -o $@ $(CXXFLAGS) $(LDFLAGS)
+
+INTEGER_map: INTEGER_map.cpp
+	$(CXX) $< -o $@ $(CXXFLAGS) $(LDFLAGS)
+
+test: INTEGER
 	./$<
 
 clean:
-	@rm -f SinglePoint
+	@rm -f INTEGER INTEGER_naive INTEGER_map
