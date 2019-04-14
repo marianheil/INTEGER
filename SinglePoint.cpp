@@ -1,9 +1,10 @@
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <iostream>
-#include <vector>
-#include <unordered_map>
 #include <typeinfo>
+#include <unordered_map>
+#include <vector>
 
 namespace {
   using vec4 = std::array<double,4>;
@@ -206,7 +207,8 @@ namespace {
       for( auto const & y: prev_y)
         ty-=y;
       auto const & ay = all_yzE[index]->find(ty);
-      if(ay == all_yzE[index]->end())
+      if(ay == all_yzE[index]->end()
+          || std::find(prev_y.begin(), prev_y.end(), ay->first) != prev_y.end())
         return std::vector<t_result>();
       prev_y.push_back(ay->first);
       prev_zE.push_back(&(ay->second));
@@ -218,6 +220,9 @@ namespace {
     }
     std::vector<t_result> results;
     for(const auto & ay: *(all_yzE[index])){
+      if(std::find(prev_y.begin(), prev_y.end(), ay.first) != prev_y.end()){
+        continue;
+      }
       prev_y.push_back(ay.first);
       prev_zE.push_back(&(ay.second));
       auto const & new_result = iterate_y(all_yzE, index+1, prev_x, prev_y, prev_zE);
@@ -241,7 +246,8 @@ namespace {
       for( auto const & x: prev_x)
         tx-=x;
       auto const & ax = all_mom[index]->find(tx);
-      if(ax == all_mom[index]->end())
+      if(ax == all_mom[index]->end()
+          || std::find(prev_x.begin(), prev_x.end(), ax->first) != prev_x.end())
         return std::vector<t_result>();
       prev_x.push_back(ax->first);
       prev_y.push_back(&(ax->second));
@@ -255,6 +261,9 @@ namespace {
     // call recusively
     std::vector<t_result> results;
     for(const auto & ax: *(all_mom[index])){
+      if(std::find(prev_x.begin(), prev_x.end(), ax.first) != prev_x.end()){
+        continue;
+      }
       prev_x.push_back(ax.first);
       prev_y.push_back(&(ax.second));
       auto const & new_result = iterate_x(all_mom, index+1, prev_x, prev_y);
@@ -349,7 +358,7 @@ namespace {
 int main(){
   // std::vector<t_result> results{find_possible_map(100, true)};
   // std::cout << "Map Found " << results.size() << " possible momenta" << std::endl;
-  std::vector<t_result> results{find_possible_recusive(200, 10)};
+  std::vector<t_result> results{find_possible_recusive(200, 5)};
   std::cout << "Map Found " << results.size() << " possible momenta" << std::endl;
   // std::vector<t_result> results_normal{find_possible(200, false)};
   // std::cout << "Found " << results_normal.size() << " possible momenta" << std::endl;
