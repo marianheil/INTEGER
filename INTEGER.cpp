@@ -1,16 +1,20 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <functional>
 #include <iostream>
 #include <unordered_map>
 #include <vector>
 
 namespace {
   using vec4 = std::array<double,4>; //!< (x,y,z,E)
-  using t_result = std::vector<vec4>;
+  using incoming_vec = std::array<vec4, 2>;
+  using particle_vec = std::vector<vec4>;
   using mom_zE = std::vector<std::array<double,2>>; //!< (multiple) z & E
   using mom_yzE = std::unordered_map<double, mom_zE>; //!< (multiple) y
   using mom_map = std::unordered_map<double, mom_yzE>; //!< (multiple) x
+  using cuts_momenta = std::function<bool(vec4)>;
+  using cuts_final = std::function<bool(incoming_vec, particle_vec)>;
 
   /// return true if double only has an integer part
   bool is_int(double d){
@@ -26,11 +30,6 @@ namespace {
     return true;
   }
 
-  /// calculate Rapidity
-  double rap(double const pz, double const E){
-    return 1./2.*log(1.*(E+pz)/(E-pz));
-  }
-
   /// returns E from m^2
   double get_E2(double const p0, double const p1, double const p2, double const m2 = 0.){
     return sqrt(+p0*p0+p1*p1+p2*p2+m2);
@@ -38,16 +37,14 @@ namespace {
 
   /// generates mom_map of all allowed integer PSP up to @param maxp
   mom_map possible_mom_map(
-      double const mass2,double const maxp, double const max_rap, double const minpt){
+      double const mass2,double const maxp, cuts_momenta const & pass_cuts){
     mom_map results;
     for(double i0=-maxp; i0<maxp;++i0){
       for(double i1=-maxp; i1<maxp;++i1){
-        if(i0*i0+i1*i1>minpt*minpt){
-          for(double i2=-maxp; i2<maxp;++i2){
-            const double E(get_E2(i0, i1, i2, mass2));
-            if(is_int(E) && rap(i2, E) < max_rap)
-              results[i0][i1].emplace_back(std::array<double,2>{i2,E});
-          }
+        for(double i2=-maxp; i2<maxp;++i2){
+          const double E(get_E2(i0, i1, i2, mass2));
+          if(is_int(E) && pass_cuts({i0, i1, i2, E}))
+            results[i0][i1].emplace_back(std::array<double,2>{i2,E});
         }
       }
     }
@@ -75,7 +72,10 @@ namespace {
   }
 
   /// generate incoming states
-  std::array<vec4, 2> construct_incoming(std::vector<vec4>::const_iterator const begin, std::vector<vec4>::const_iterator const end){
+  incoming_vec construct_incoming(
+    std::vector<vec4>::const_iterator const begin,
+    std::vector<vec4>::const_iterator const end
+  ){
     double xa = 0.;
     double xb = 0.;
     for(auto out = begin; out<end; ++out){
@@ -85,20 +85,21 @@ namespace {
     return {{{{0,0,-xa/2.,xa/2.}}, {{0,0,xb/2.,xb/2.}}}};
   }
 
-  std::array<vec4, 2> construct_incoming(std::vector<vec4> const & outgoing){
+  incoming_vec construct_incoming(std::vector<vec4> const & outgoing){
     return construct_incoming(outgoing.begin(), outgoing.end());
   }
 
-  std::vector<t_result> construct_incoming(
+  std::vector<particle_vec> construct_incoming(
     std::vector<double> const & vec_x, std::vector<double> const & vec_y,
-    std::vector<double> const & vec_z, std::vector<double> const & vec_E
+    std::vector<double> const & vec_z, std::vector<double> const & vec_E,
+    cuts_final const & cuts
   ){
-    t_result particles(vec_x.size());
+    particle_vec particles(vec_x.size());
     for(size_t i=0; i<vec_x.size(); ++i){
       particles[i] = {vec_x[i], vec_y[i], vec_z[i], vec_E[i]};
     }
     auto const incoming(construct_incoming(particles));
-    if(is_int(incoming)){
+    if(is_int(incoming) && cuts(incoming, particles)){
       particles.insert( particles.end(), incoming.begin(), incoming.end() );
       std::cout << "POSSIBLE FOUND" << std::endl;
       for(auto const & p: particles){
@@ -107,26 +108,27 @@ namespace {
       }
       return {std::move(particles)};
     }
-    return std::vector<t_result>();
+    return std::vector<particle_vec>();
   }
 
   /// recursive iteration over z & E
-  std::vector<t_result> iterate_zE(
+  std::vector<particle_vec> iterate_zE(
     std::vector<mom_zE const *> const & all_zE, size_t const index,
     std::vector<double> const & prev_x, std::vector<double> const & prev_y,
-    std::vector<double> & prev_z, std::vector<double> & prev_E
+    std::vector<double> & prev_z, std::vector<double> & prev_E,
+    cuts_final const & cuts
   ){
-    std::vector<t_result> results;
+    std::vector<particle_vec> results;
     for(const auto & azE: *(all_zE[index])){
       prev_z.push_back(azE[0]);
       prev_E.push_back(azE[1]);
-      std::vector<t_result> new_result;
+      std::vector<particle_vec> new_result;
       if(index >= all_zE.size()-1){
         // stop iteration over z & E and calculate incoming
-        new_result = construct_incoming(prev_x, prev_y, prev_z, prev_E);
+        new_result = construct_incoming(prev_x, prev_y, prev_z, prev_E, cuts);
       } else{
         // recursion
-        new_result = iterate_zE(all_zE, index+1, prev_x, prev_y, prev_z, prev_E);
+        new_result = iterate_zE(all_zE, index+1, prev_x, prev_y, prev_z, prev_E, cuts);
       }
       if(new_result.size() > 0)
         results.insert(results.end(), new_result.begin(), new_result.end());
@@ -137,10 +139,11 @@ namespace {
   }
 
   /// recursive iteration over y
-  std::vector<t_result> iterate_y(
+  std::vector<particle_vec> iterate_y(
     std::vector<mom_yzE const *> const & all_yzE, size_t const index,
     std::vector<double> const & prev_x, std::vector<double> & prev_y,
-    std::vector<mom_zE const *> & prev_zE
+    std::vector<mom_zE const *> & prev_zE,
+    cuts_final const & cuts
   ){
     if(index >= all_yzE.size()-1){
       // stop iteration over y and iterate over z & E
@@ -150,24 +153,24 @@ namespace {
       auto const & ay = all_yzE[index]->find(ty);
       if(ay == all_yzE[index]->end()
           || std::find(prev_y.begin(), prev_y.end(), ay->first) != prev_y.end())
-        return std::vector<t_result>();
+        return std::vector<particle_vec>();
       prev_y.push_back(ay->first);
       prev_zE.push_back(&(ay->second));
       std::vector<double> new_z, new_E;
-      auto const & results = iterate_zE(prev_zE, 0, prev_x, prev_y, new_z, new_E);
+      auto const & results = iterate_zE(prev_zE, 0, prev_x, prev_y, new_z, new_E, cuts);
       prev_zE.pop_back();
       prev_y.pop_back();
       return results;
     }
     // recursion
-    std::vector<t_result> results;
+    std::vector<particle_vec> results;
     for(const auto & ay: *(all_yzE[index])){
       if(std::find(prev_y.begin(), prev_y.end(), ay.first) != prev_y.end()){
         continue;
       }
       prev_y.push_back(ay.first);
       prev_zE.push_back(&(ay.second));
-      auto const & new_result = iterate_y(all_yzE, index+1, prev_x, prev_y, prev_zE);
+      auto const & new_result = iterate_y(all_yzE, index+1, prev_x, prev_y, prev_zE, cuts);
       if(new_result.size() > 0)
         results.insert(results.end(), new_result.begin(), new_result.end());
       prev_zE.pop_back();
@@ -178,10 +181,11 @@ namespace {
   }
 
   /// recursive iteration over x
-  std::vector<t_result> iterate_x(
+  std::vector<particle_vec> iterate_x(
     std::vector<mom_map const *> const & all_mom, size_t const index,
     std::vector<double> & prev_x,
-    std::vector<mom_yzE const *> & prev_y
+    std::vector<mom_yzE const *> & prev_y,
+    cuts_final const & cuts
   ){
     if(index >= all_mom.size()-1){
       // stop iteration of x and begin iteration on y
@@ -191,25 +195,25 @@ namespace {
       auto const & ax = all_mom[index]->find(tx);
       if(ax == all_mom[index]->end()
           || std::find(prev_x.begin(), prev_x.end(), ax->first) != prev_x.end())
-        return std::vector<t_result>();
+        return std::vector<particle_vec>();
       prev_x.push_back(ax->first);
       prev_y.push_back(&(ax->second));
       std::vector<double> new_y;
       std::vector<mom_zE const * > new_zE;
-      auto const & new_result = iterate_y(prev_y, 0, prev_x, new_y, new_zE);
+      auto const & new_result = iterate_y(prev_y, 0, prev_x, new_y, new_zE, cuts);
       prev_y.pop_back();
       prev_x.pop_back();
       return new_result;
     }
     // recursion
-    std::vector<t_result> results;
+    std::vector<particle_vec> results;
     for(const auto & ax: *(all_mom[index])){
       if(std::find(prev_x.begin(), prev_x.end(), ax.first) != prev_x.end()){
         continue;
       }
       prev_x.push_back(ax.first);
       prev_y.push_back(&(ax.second));
-      auto const & new_result = iterate_x(all_mom, index+1, prev_x, prev_y);
+      auto const & new_result = iterate_x(all_mom, index+1, prev_x, prev_y, cuts);
       results.insert(results.end(), new_result.begin(), new_result.end());
       prev_y.pop_back();
       prev_x.pop_back();
@@ -218,11 +222,13 @@ namespace {
   }
 
   /// wrapper for recursive call
-  std::vector<t_result> find_possible_recusive(double const maxp, size_t const njets){
-    constexpr double max_rap = 5.; // maximal rapidity
+  std::vector<particle_vec> find_possible_recusive(
+    double const maxp, size_t const njets,
+    cuts_momenta const & jet_cuts, cuts_momenta const & higgs_cuts, cuts_final const & global_cuts
+  ){
     constexpr double higgs_m2 = 88.*88.*2.; // mass square of the Higgs boson
-    const auto p_parton{possible_mom_map(0, maxp, max_rap, 30)};
-    const auto p_higgs{possible_mom_map(higgs_m2, maxp, max_rap, 0)};
+    const auto p_parton{possible_mom_map(0, maxp, jet_cuts)};
+    const auto p_higgs{possible_mom_map(higgs_m2, maxp, higgs_cuts)};
     std::cout << p_parton.size() << " " << p_higgs.size() << "\nreal: "
       << mom_map_size(p_parton) << " " << mom_map_size(p_higgs) << std::endl;
     std::vector<mom_map const *> all_maps;
@@ -232,11 +238,65 @@ namespace {
     }
     std::vector<double> new_x;
     std::vector<mom_yzE const * > new_y;
-    return iterate_x(all_maps, 0, new_x, new_y);
+    return iterate_x(all_maps, 0, new_x, new_y, global_cuts);
   }
 }
 
+/// calculate Rapidity
+double rap(vec4 const & mom){
+  return 1./2.*log( (mom[3]+mom[2]) / (mom[3]-mom[2]) );
+}
+
+/// calculate transverse momentum
+double pt(vec4 const & mom){
+  return sqrt( mom[0]*mom[0] + mom[1]*mom[1] );
+}
+
+/// calculate polar angle phi
+double phi(vec4 const & p) {
+  double phi = atan2(p[1],p[2]);
+  if (phi < 0.0) phi += 2.*M_PI;
+  if (phi >= 2.*M_PI) phi -= 2.*M_PI;
+  return phi;
+}
+
+/// calculate jet radius
+double dR(vec4 const & a, vec4 const & b){
+  return std::abs( std::abs(rap(a)-rap(b)) - std::abs(phi(a)-phi(b)) );
+}
+
+/// calculate center of mass energy
+double Ecms(incoming_vec const & incoming){
+  return sqrt(2*(incoming[0][3]*incoming[0][3]+incoming[1][3]*incoming[1][3]));
+}
+
+/// cuts on a single jet
+bool cuts_jets(vec4 const & mom){
+  constexpr double minpt = 30.;
+  constexpr double max_rap = 5.;
+  return pt(mom)>minpt && rap(mom) < max_rap;
+}
+
+/// cuts on the Higgs boson
+bool cuts_higgs(vec4 const & mom){
+  constexpr double max_rap = 2.;
+  return rap(mom) < max_rap;
+}
+
+/// cuts on final configuration
+bool cuts_global(incoming_vec const & incoming, particle_vec const & outgoing){
+  constexpr double min_dR = .4;
+  constexpr double max_Ecms = 10000.;
+  for(size_t i=0; i<outgoing.size(); ++i){
+    for(size_t j=0; j<i; ++j){
+      if(dR(outgoing[i], outgoing[j]) < min_dR)
+        return false;
+    }
+  }
+  return Ecms(incoming) < max_Ecms;
+}
+
 int main(){
-  std::vector<t_result> results{find_possible_recusive(200, 5)};
+  std::vector<particle_vec> results{find_possible_recusive(200, 4, cuts_jets, cuts_higgs, cuts_global)};
   std::cout << "Map Found " << results.size() << " possible momenta" << std::endl;
 }
