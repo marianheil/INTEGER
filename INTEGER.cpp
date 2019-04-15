@@ -7,17 +7,19 @@
 #include <vector>
 
 namespace {
-  using vec4 = std::array<double,4>;
+  using vec4 = std::array<double,4>; //!< (x,y,z,E)
   using t_result = std::vector<vec4>;
-  using mom_zE = std::vector<std::array<double,2>>; // (multiple) z & E
-  using mom_yzE = std::unordered_map<double, mom_zE>; // (multiple) y
-  using mom_map = std::unordered_map<double, mom_yzE>; // (multiple) x
+  using mom_zE = std::vector<std::array<double,2>>; //!< (multiple) z & E
+  using mom_yzE = std::unordered_map<double, mom_zE>; //!< (multiple) y
+  using mom_map = std::unordered_map<double, mom_yzE>; //!< (multiple) x
 
+  /// return true if double only has an integer part
   bool is_int(double d){
     double intpart;
     return std::modf(d, &intpart) == 0;
   }
 
+  /// returns true if all component of a vector are pure integers
   template<class T>
   bool is_int(T const & d){
     for(auto p: d)
@@ -25,14 +27,17 @@ namespace {
     return true;
   }
 
+  /// calculate Rapidity
   double rap(double const pz, double const E){
     return 1./2.*log(1.*(E+pz)/(E-pz));
   }
 
+  /// returns E from m^2
   double get_E2(double const p0, double const p1, double const p2, double const m2 = 0.){
     return sqrt(+p0*p0+p1*p1+p2*p2+m2);
   }
 
+  /// generates mom_map of all allowed integer PSP up to @param maxp
   mom_map possible_mom_map(
       double const mass2,double const maxp, double const max_rap, double const minpt){
     mom_map results;
@@ -50,6 +55,27 @@ namespace {
     return std::move(results);
   }
 
+  /// Prints a vector/array
+  template<class T>
+  void print_array(T const & a){
+    std::cout << "{";
+    for(auto p=a.begin(); p<a.end()-1; ++p)
+      std::cout << *p << ", ";
+    std::cout << *(a.end()-1) << "}";
+  }
+
+  /// Gives the sive of a unfolded mom_map
+  size_t mom_map_size(mom_map const & map){
+    size_t ret=0;
+    for(const auto & x: map){
+      for(const auto & y: x.second){
+        ret+=y.second.size();
+      }
+    }
+    return ret;
+  }
+
+  /// generate incoming states
   std::array<vec4, 2> construct_incoming(std::vector<vec4>::const_iterator const begin, std::vector<vec4>::const_iterator const end){
     double xa = 0.;
     double xb = 0.;
@@ -62,24 +88,6 @@ namespace {
 
   std::array<vec4, 2> construct_incoming(std::vector<vec4> const & outgoing){
     return construct_incoming(outgoing.begin(), outgoing.end());
-  }
-
-  template<class T>
-  void print_array(T const & a){
-    std::cout << "{";
-    for(auto p=a.begin(); p<a.end()-1; ++p)
-      std::cout << *p << ", ";
-    std::cout << *(a.end()-1) << "}";
-  }
-
-  size_t mom_map_size(mom_map const & map){
-    size_t ret=0;
-    for(const auto & x: map){
-      for(const auto & y: x.second){
-        ret+=y.second.size();
-      }
-    }
-    return ret;
   }
 
   std::vector<t_result> construct_incoming(
@@ -103,6 +111,7 @@ namespace {
     return std::vector<t_result>();
   }
 
+  /// recursive iteration over z & E
   std::vector<t_result> iterate_zE(
     std::vector<mom_zE const *> const & all_zE, size_t const index,
     std::vector<double> const & prev_x, std::vector<double> const & prev_y,
@@ -117,6 +126,7 @@ namespace {
         // stop iteration over z & E and calculate incoming
         new_result = construct_incoming(prev_x, prev_y, prev_z, prev_E);
       } else{
+        // recursion
         new_result = iterate_zE(all_zE, index+1, prev_x, prev_y, prev_z, prev_E);
       }
       if(new_result.size() > 0)
@@ -127,6 +137,7 @@ namespace {
     return results;
   }
 
+  /// recursive iteration over y
   std::vector<t_result> iterate_y(
     std::vector<mom_yzE const *> const & all_yzE, size_t const index,
     std::vector<double> const & prev_x, std::vector<double> & prev_y,
@@ -149,6 +160,7 @@ namespace {
       prev_y.pop_back();
       return results;
     }
+    // recursion
     std::vector<t_result> results;
     for(const auto & ay: *(all_yzE[index])){
       if(std::find(prev_y.begin(), prev_y.end(), ay.first) != prev_y.end()){
@@ -166,6 +178,7 @@ namespace {
 
   }
 
+  /// recursive iteration over x
   std::vector<t_result> iterate_x(
     std::vector<mom_map const *> const & all_mom, size_t const index,
     std::vector<double> & prev_x,
@@ -189,7 +202,7 @@ namespace {
       prev_x.pop_back();
       return new_result;
     }
-    // call recusively
+    // recursion
     std::vector<t_result> results;
     for(const auto & ax: *(all_mom[index])){
       if(std::find(prev_x.begin(), prev_x.end(), ax.first) != prev_x.end()){
@@ -205,6 +218,7 @@ namespace {
     return results;
   }
 
+  /// wrapper for recursive call
   std::vector<t_result> find_possible_recusive(double const maxp, size_t const njets){
     constexpr double max_rap = 5.; // maximal rapidity
     constexpr double higgs_m2 = 88.*88.*2.; // mass square of the Higgs boson
@@ -224,10 +238,6 @@ namespace {
 }
 
 int main(){
-  // std::vector<t_result> results{find_possible_map(100, true)};
-  // std::cout << "Map Found " << results.size() << " possible momenta" << std::endl;
   std::vector<t_result> results{find_possible_recusive(200, 5)};
   std::cout << "Map Found " << results.size() << " possible momenta" << std::endl;
-  // std::vector<t_result> results_normal{find_possible(200, false)};
-  // std::cout << "Found " << results_normal.size() << " possible momenta" << std::endl;
 }
