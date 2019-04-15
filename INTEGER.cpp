@@ -2,7 +2,6 @@
 #include <array>
 #include <cmath>
 #include <iostream>
-#include <typeinfo>
 #include <unordered_map>
 #include <vector>
 
