@@ -3,6 +3,9 @@
 ifndef CXX
 	CXX := g++
 endif
+ifndef PREFIX
+	PREFIX := /usr/bin
+endif
 CXXFLAGS += -Wall -O2 -std=c++14
 # LDFLAGS += ""
 
@@ -19,6 +22,9 @@ $(PROGRAMS): %: %.cpp
 
 test: INTEGER
 	./$<
+
+install: INTEGER
+	cp $< $(PREFIX)
 
 clean:
 	@rm -f $(PROGRAMS)
