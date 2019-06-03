@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <array>
+#include <iomanip>
 #include <iostream>
 #include <unordered_map>
 
@@ -53,8 +54,8 @@ namespace INTEGER{
     void print_array(T const & a){
       std::cout << "{";
       for(auto p=a.begin(); p<a.end()-1; ++p)
-        std::cout << *p << ", ";
-      std::cout << *(a.end()-1) << "}";
+        std::cout <<std::setw(4)<< *p << ", ";
+      std::cout <<std::setw(4)<< *(a.end()-1) << "}";
     }
 
     /// Gives the sive of a unfolded mom_map
