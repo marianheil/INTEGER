@@ -28,12 +28,13 @@ namespace {
     return {p[0], p[1], p[2], p[3]};
   }
 
+  template<class iterator_cbegin, class iterator_cend>
   std::vector<fastjet::PseudoJet> to_PseudoJets(
-      INTEGER::particle_vec const & particles
+      iterator_cbegin const & begin, iterator_cend const & end
   ){
     std::vector<fastjet::PseudoJet> jets;
-    for(auto const & p: particles){
-      jets.emplace_back(to_PseudoJet(p));
+    for(auto p=begin; p<end; ++p){
+      jets.emplace_back(to_PseudoJet(*p));
     }
     return jets;
   }
@@ -48,7 +49,7 @@ bool cuts_jets(INTEGER::vec4 const & mom){
 
 /// cuts on the Higgs boson
 bool cuts_higgs(INTEGER::vec4 const & mom){
-  constexpr double max_rap = 2.;
+  constexpr double max_rap = 5.;
   return rap(mom) < max_rap;
 }
 
@@ -56,11 +57,11 @@ bool cuts_higgs(INTEGER::vec4 const & mom){
 bool cuts_global(INTEGER::incoming_vec const & incoming,
                  INTEGER::particle_vec const & outgoing
 ){
-  auto out = to_PseudoJets(outgoing);
   constexpr double max_Ecms = 10000.;
   if(Ecms(incoming) > max_Ecms) return false;
+  auto out = to_PseudoJets(outgoing.cbegin()+1, outgoing.cend());
   constexpr double jet_R = .4;
   fastjet::ClusterSequence cs{out,
     fastjet::JetDefinition(fastjet::JetAlgorithm::antikt_algorithm, jet_R)};
-  return cs.inclusive_jets().size() == outgoing.size();
+  return cs.inclusive_jets().size() == outgoing.size()-1;
 }
