@@ -2,6 +2,9 @@
 
 #include <cmath>
 
+#include "fastjet/ClusterSequence.hh"
+#include "fastjet/PseudoJet.hh"
+
 #include "INTEGER.hh"
 
 namespace {
@@ -16,22 +19,23 @@ namespace {
     return sqrt( mom[0]*mom[0] + mom[1]*mom[1] );
   }
 
-  /// calculate polar angle phi
-  double phi(INTEGER::vec4 const & p) {
-    double phi = atan2(p[1],p[2]);
-    if (phi < 0.0) phi += 2.*M_PI;
-    if (phi >= 2.*M_PI) phi -= 2.*M_PI;
-    return phi;
-  }
-
-  /// calculate jet radius
-  double dR(INTEGER::vec4 const & a, INTEGER::vec4 const & b){
-    return std::abs( std::abs(rap(a)-rap(b)) - std::abs(phi(a)-phi(b)) );
-  }
-
   /// calculate center of mass energy
   double Ecms(INTEGER::incoming_vec const & incoming){
     return sqrt(2*(incoming[0][3]*incoming[0][3]+incoming[1][3]*incoming[1][3]));
+  }
+
+  fastjet::PseudoJet to_PseudoJet(INTEGER::vec4 const & p){
+    return {p[0], p[1], p[2], p[3]};
+  }
+
+  std::vector<fastjet::PseudoJet> to_PseudoJets(
+      INTEGER::particle_vec const & particles
+  ){
+    std::vector<fastjet::PseudoJet> jets;
+    for(auto const & p: particles){
+      jets.emplace_back(to_PseudoJet(p));
+    }
+    return jets;
   }
 }
 
@@ -49,14 +53,14 @@ bool cuts_higgs(INTEGER::vec4 const & mom){
 }
 
 /// cuts on final configuration
-bool cuts_global(INTEGER::incoming_vec const & incoming, INTEGER::particle_vec const & outgoing){
-  constexpr double min_dR = .4;
+bool cuts_global(INTEGER::incoming_vec const & incoming,
+                 INTEGER::particle_vec const & outgoing
+){
+  auto out = to_PseudoJets(outgoing);
   constexpr double max_Ecms = 10000.;
-  for(size_t i=0; i<outgoing.size(); ++i){
-    for(size_t j=0; j<i; ++j){
-      if(dR(outgoing[i], outgoing[j]) < min_dR)
-        return false;
-    }
-  }
-  return Ecms(incoming) < max_Ecms;
+  if(Ecms(incoming) > max_Ecms) return false;
+  constexpr double jet_R = .4;
+  fastjet::ClusterSequence cs{out,
+    fastjet::JetDefinition(fastjet::JetAlgorithm::antikt_algorithm, jet_R)};
+  return cs.inclusive_jets().size() == outgoing.size();
 }
