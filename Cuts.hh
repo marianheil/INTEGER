@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cmath>
+#include <random>
 
 #include "fastjet/ClusterSequence.hh"
 #include "fastjet/PseudoJet.hh"
@@ -38,17 +39,29 @@ namespace {
     }
     return jets;
   }
+
+  /// Prints a vector/array
+  template<class T>
+  void print_array(T const & a){
+    for(auto p=begin(a); p<end(a)-1; ++p)
+      std::cout <<std::setw(4)<< *p << ", ";
+    std::cout <<std::setw(4)<< *(end(a)-1) << "}";
+  }
+
 }
 
 /// cuts on a single jet
 bool cuts_jets(INTEGER::vec4 const & mom){
-  constexpr double minpt = 30.;
+  // constexpr double minpt = 30.;
+  constexpr double minpt = 0.;
   constexpr double max_rap = 5.;
   return pt(mom)>minpt && rap(mom) < max_rap;
 }
 
 /// cuts on the Higgs boson
 bool cuts_higgs(INTEGER::vec4 const & mom){
+  static std::mt19937_64 ran;
+  // if(ran()/double(ran.max()) > 1) return false;
   constexpr double max_rap = 5.;
   return rap(mom) < max_rap;
 }
@@ -57,11 +70,41 @@ bool cuts_higgs(INTEGER::vec4 const & mom){
 bool cuts_global(INTEGER::incoming_vec const & incoming,
                  INTEGER::particle_vec const & outgoing
 ){
+  // static std::mt19937_64 ran;
+  // if(ran()/double(ran.max()) > 1) return false;
   constexpr double max_Ecms = 10000.;
   if(Ecms(incoming) > max_Ecms) return false;
-  auto out = to_PseudoJets(outgoing.cbegin()+1, outgoing.cend());
+
+  // INTEGER::vec4 boson = outgoing[0];
+  // if(rap(boson) != rap(outgoing[5])) return false;
+
+  // auto out = to_PseudoJets(outgoing.cbegin()+1, outgoing.cend());
+  auto out = sorted_by_rapidity(to_PseudoJets(outgoing.cbegin(), outgoing.cend()));
   constexpr double jet_R = .4;
+  constexpr double minpt = 30.;
+  static const std::vector<int> search_idx{0, 1, 2, 3, 4, 5, 5};
   fastjet::ClusterSequence cs{out,
     fastjet::JetDefinition(fastjet::JetAlgorithm::antikt_algorithm, jet_R)};
-  return cs.inclusive_jets().size() == outgoing.size()-1;
+  auto const jets = sorted_by_rapidity(cs.inclusive_jets(minpt));
+  // if(jets.size() < 4) return false;
+  std::vector<int> const jet_idx{ cs.particle_jet_indices(jets) };
+  for(size_t i=0; i<search_idx.size(); ++i){
+    if(search_idx[i]<-1) continue;
+    if(search_idx[i] != jet_idx[i]) return false;
+  }
+  std::cout << "#jets " << jets.size() << std::endl;
+  for(auto const & idx: jet_idx)
+    std::cout << idx << " ";
+  std::cout << std::endl;
+  for(auto const & p: out){
+    std::cout << "ev.outgoing.push_back({HEJ::ParticleID::gluon, {";
+    print_array(p.four_mom());
+    std::cout << ", {}});" << std::endl;
+  }
+  for(size_t i=0; i<incoming.size(); ++i){
+    std::cout << "ev.incoming[" << i << "] = {HEJ::ParticleID::gluon, {";
+    print_array(incoming[i]);
+    std::cout << ", {}};" << std::endl;
+  }
+  return true;
 }

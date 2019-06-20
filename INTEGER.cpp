@@ -52,7 +52,6 @@ namespace INTEGER{
     /// Prints a vector/array
     template<class T>
     void print_array(T const & a){
-      std::cout << "{";
       for(auto p=a.begin(); p<a.end()-1; ++p)
         std::cout <<std::setw(4)<< *p << ", ";
       std::cout <<std::setw(4)<< *(a.end()-1) << "}";
@@ -98,12 +97,20 @@ namespace INTEGER{
       }
       auto const incoming(construct_incoming(particles));
       if(is_int(incoming) && cuts(incoming, particles)){
-        particles.insert( particles.end(), incoming.begin(), incoming.end() );
         std::cout << "POSSIBLE FOUND" << std::endl;
-        for(auto const & p: particles){
-          print_array(p);
-          std::cout << std::endl;
-        }
+        // for(size_t i=0; i<particles.size(); ++i){
+        //   auto const & p{particles[i]};
+        //   // std::cout << "ev.outgoing.push_back({HEJ::ParticleID::"<< (i==0?"higgs":"gluon") << ", {";
+        //   std::cout << "ev.outgoing.push_back({HEJ::ParticleID::gluon, {";
+        //   print_array(p);
+        //   std::cout << ", {}});" << std::endl;
+        // }
+        // for(auto const & p: incoming){
+        //   std::cout << "ev.incoming[0] = {HEJ::ParticleID::gluon, {";
+        //   print_array(p);
+        //   std::cout << ", {}};" << std::endl;
+        // }
+        particles.insert( particles.end(), incoming.begin(), incoming.end() );
         return {std::move(particles)};
       }
       return std::vector<particle_vec>();
@@ -230,7 +237,7 @@ namespace INTEGER{
     std::cout << p_parton.size() << " " << p_higgs.size() << "\nreal: "
       << mom_map_size(p_parton) << " " << mom_map_size(p_higgs) << std::endl;
     std::vector<mom_map const *> all_maps;
-    all_maps.push_back(&p_higgs);
+    // all_maps.push_back(&p_higgs);
     for(size_t i=0; i<njets; ++i){
       all_maps.push_back(&p_parton);
     }
@@ -242,6 +249,6 @@ namespace INTEGER{
 
 int main(){
   using namespace INTEGER;
-  std::vector<particle_vec> results{find_possible_recusive(200, 4, cuts_jets, cuts_higgs, cuts_global)};
+  std::vector<particle_vec> results{find_possible_recusive(100, 7, cuts_jets, cuts_higgs, cuts_global)};
   std::cout << "Map Found " << results.size() << " possible momenta" << std::endl;
 }
