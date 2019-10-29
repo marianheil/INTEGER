@@ -46,7 +46,7 @@ namespace INTEGER{
           }
         }
       }
-      return std::move(results);
+      return results;
     }
 
     /// Prints a vector/array
