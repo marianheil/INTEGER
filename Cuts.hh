@@ -92,17 +92,17 @@ bool cuts_global(INTEGER::incoming_vec const & incoming,
     if(search_idx[i]<-1) continue;
     if(search_idx[i] != jet_idx[i]) return false;
   }
-  std::cout << "#jets " << jets.size() << std::endl;
+  std::cout << "#jets " << jets.size() << " jet idx: ";
   for(auto const & idx: jet_idx)
     std::cout << idx << " ";
   std::cout << std::endl;
   for(auto const & p: out){
-    std::cout << "ev.outgoing.push_back({HEJ::ParticleID::gluon, {";
+    std::cout << "          ev.outgoing.push_back({gluon, {";
     print_array(p.four_mom());
     std::cout << ", {}});" << std::endl;
   }
   for(size_t i=0; i<incoming.size(); ++i){
-    std::cout << "ev.incoming[" << i << "] = {HEJ::ParticleID::gluon, {";
+    std::cout << "          ev.incoming[" << i << "] = {gluon, {";
     print_array(incoming[i]);
     std::cout << ", {}};" << std::endl;
   }
